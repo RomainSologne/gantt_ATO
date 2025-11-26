@@ -24,9 +24,9 @@
       FeatureLayer, Query
     ) {
 
-      // ⚠️ METTRE ICI L'URL DE TA FEATURELAYER AGO
+      // --- URL DE TA FEATURELAYER AGO ---
       const featureLayerUrl =
-        "https://services.arcgis.com/.../ArcGIS/rest/services/.../FeatureServer/0";
+        "https://services.arcgis.com/d3voDfTFbHOCRwVR/arcgis/rest/services/survey123_52a2c2c243354b4bbe1285638d3e41ba/FeatureServer/0";
 
       const layer = new FeatureLayer({ url: featureLayerUrl });
 
@@ -39,11 +39,10 @@
 
         const features = result.features;
 
-        // ➜ ADAPTER LES NOMS DE CHAMPS ICI
-        const taskField     = "Task";
-        const startField    = "StartDate";
-        const endField      = "EndDate";
-        const categoryField = "Category";  // optionnel
+        // --- Champs de ta couche ---
+        const startField = "d_but_de_lactivit";
+        const endField   = "fin_de_lactivit";
+        const categoryField = "unit";
 
         const tasks = [];
         const starts = [];
@@ -51,13 +50,19 @@
         const categories = [];
 
         features.forEach(f => {
-          tasks.push(f.attributes[taskField]);
-          starts.push(new Date(f.attributes[startField]));
-          ends.push(new Date(f.attributes[endField]));
-          categories.push(f.attributes[categoryField]);
+          const attrs = f.attributes;
+
+          const start = attrs[startField];
+          const end   = attrs[endField];
+
+          if (!start || !end) return;   // ignore les lignes incomplètes
+
+          tasks.push(attrs[categoryField]);    // nom de tâche = "unit"
+          starts.push(new Date(start));
+          ends.push(new Date(end));
+          categories.push(attrs[categoryField]);
         });
 
-        // Construction du diagramme de Gantt
         const data = [{
           type: 'bar',
           x: ends.map((e, i) => (e - starts[i]) / (1000 * 3600 * 24)), // durée en jours
@@ -68,13 +73,11 @@
           hovertemplate:
             "<b>%{y}</b><br>" +
             "Début : %{base|%d/%m/%Y}<br>" +
-            "Fin : %{x|%d/%m/%Y}<br>" +
-            "Catégorie : %{text}<extra></extra>",
+            "Fin : %{text}<extra></extra>",
         }];
 
         const layout = {
-          title: "Diagramme de Gantt basé sur la Feature Layer AGO",
-          barmode: 'stack',
+          title: "Diagramme de Gantt — Feature Layer AGO",
           margin: { l: 150, r: 20, t: 40, b: 40 },
           xaxis: { title: "Dates", type: "date" },
           yaxis: { automargin: true }
