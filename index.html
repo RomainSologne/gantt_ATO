@@ -90,6 +90,8 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
         base: tasks.map(t => t.Start),
         orientation: 'h',
         text: tasks.map(t => t.Label),      // label pour chaque barre
+        bargap: 0.2,
+        width: 0.4,
         marker: { color: tasks.map(t => t.Color) },  // couleur selon field_9
         hovertemplate:
           "<b>%{y}</b><br>" +
