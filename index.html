@@ -1,92 +1,42 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>Gantt Plotly + Feature Layer AGO</title>
+  <meta charset="utf-8">
+  <title>Gantt Plotly + ArcGIS REST</title>
 
-  <!-- ArcGIS API for JavaScript -->
-  <script src="https://js.arcgis.com/4.29/"></script>
-
-  <!-- Plotly -->
-  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-
-  <style>
-    html, body { margin: 0; padding: 0; height: 100%; width: 100%; }
-    #chart { width: 100%; height: 100vh; }
-  </style>
+  <!-- Plotly sans AMD (obligatoire ! ) -->
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 </head>
 
 <body>
-  <div id="chart"></div>
+
+  <div id="chart" style="width:100%;height:600px;"></div>
 
   <script>
-    require(["esri/layers/FeatureLayer", "esri/rest/support/Query"], function (
-      FeatureLayer, Query
-    ) {
+    async function loadData() {
+      const url = "https://services.arcgis.com/d3voDfTFbHOCRwVR/arcgis/rest/services/survey123_52a2c2c243354b4bbe1285638d3e41ba/FeatureServer/0/query?where=1%3D1&outFields=d_but_de_lactivit,fin_de_lactivit,unit&f=json";
 
-      // --- URL DE TA FEATURELAYER AGO ---
-      const featureLayerUrl =
-        "https://services.arcgis.com/d3voDfTFbHOCRwVR/arcgis/rest/services/survey123_52a2c2c243354b4bbe1285638d3e41ba/FeatureServer/0";
+      const response = await fetch(url);
+      const data = await response.json();
 
-      const layer = new FeatureLayer({ url: featureLayerUrl });
+      const features = data.features.map(f => f.attributes);
 
-      const query = layer.createQuery();
-      query.where = "1=1";
-      query.outFields = ["*"];
-      query.returnGeometry = false;
+      const tasks = features.map(f => ({
+        Task: f.unit,
+        Start: f.d_but_de_lactivit,
+        Finish: f.fin_de_lactivit
+      }));
 
-      layer.queryFeatures(query).then(function(result) {
+      const fig = {
+        type: "timeline",
+        x: tasks.map(t => [t.Start, t.Finish]),
+        y: tasks.map(t => t.Task)
+      };
 
-        const features = result.features;
+      Plotly.newPlot("chart", [fig]);
+    }
 
-        // --- Champs de ta couche ---
-        const startField = "d_but_de_lactivit";
-        const endField   = "fin_de_lactivit";
-        const categoryField = "unit";
-
-        const tasks = [];
-        const starts = [];
-        const ends = [];
-        const categories = [];
-
-        features.forEach(f => {
-          const attrs = f.attributes;
-
-          const start = attrs[startField];
-          const end   = attrs[endField];
-
-          if (!start || !end) return;   // ignore les lignes incomplètes
-
-          tasks.push(attrs[categoryField]);    // nom de tâche = "unit"
-          starts.push(new Date(start));
-          ends.push(new Date(end));
-          categories.push(attrs[categoryField]);
-        });
-
-        const data = [{
-          type: 'bar',
-          x: ends.map((e, i) => (e - starts[i]) / (1000 * 3600 * 24)), // durée en jours
-          y: tasks,
-          base: starts,
-          orientation: 'h',
-          text: categories,
-          hovertemplate:
-            "<b>%{y}</b><br>" +
-            "Début : %{base|%d/%m/%Y}<br>" +
-            "Fin : %{text}<extra></extra>",
-        }];
-
-        const layout = {
-          title: "Diagramme de Gantt — Feature Layer AGO",
-          margin: { l: 150, r: 20, t: 40, b: 40 },
-          xaxis: { title: "Dates", type: "date" },
-          yaxis: { automargin: true }
-        };
-
-        Plotly.newPlot("chart", data, layout);
-      });
-    });
+    loadData();
   </script>
-
 </body>
 </html>
