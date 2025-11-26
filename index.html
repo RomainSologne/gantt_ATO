@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Gantt Plotly + Feature Layer AGO</title>
+
+  <!-- ArcGIS API for JavaScript -->
+  <script src="https://js.arcgis.com/4.29/"></script>
+
+  <!-- Plotly -->
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; width: 100%; }
+    #chart { width: 100%; height: 100vh; }
+  </style>
+</head>
+
+<body>
+  <div id="chart"></div>
+
+  <script>
+    require(["esri/layers/FeatureLayer", "esri/rest/support/Query"], function (
+      FeatureLayer, Query
+    ) {
+
+      // ⚠️ METTRE ICI L'URL DE TA FEATURELAYER AGO
+      const featureLayerUrl =
+        "https://services.arcgis.com/.../ArcGIS/rest/services/.../FeatureServer/0";
+
+      const layer = new FeatureLayer({ url: featureLayerUrl });
+
+      const query = layer.createQuery();
+      query.where = "1=1";
+      query.outFields = ["*"];
+      query.returnGeometry = false;
+
+      layer.queryFeatures(query).then(function(result) {
+
+        const features = result.features;
+
+        // ➜ ADAPTER LES NOMS DE CHAMPS ICI
+        const taskField     = "Task";
+        const startField    = "StartDate";
+        const endField      = "EndDate";
+        const categoryField = "Category";  // optionnel
+
+        const tasks = [];
+        const starts = [];
+        const ends = [];
+        const categories = [];
+
+        features.forEach(f => {
+          tasks.push(f.attributes[taskField]);
+          starts.push(new Date(f.attributes[startField]));
+          ends.push(new Date(f.attributes[endField]));
+          categories.push(f.attributes[categoryField]);
+        });
+
+        // Construction du diagramme de Gantt
+        const data = [{
+          type: 'bar',
+          x: ends.map((e, i) => (e - starts[i]) / (1000 * 3600 * 24)), // durée en jours
+          y: tasks,
+          base: starts,
+          orientation: 'h',
+          text: categories,
+          hovertemplate:
+            "<b>%{y}</b><br>" +
+            "Début : %{base|%d/%m/%Y}<br>" +
+            "Fin : %{x|%d/%m/%Y}<br>" +
+            "Catégorie : %{text}<extra></extra>",
+        }];
+
+        const layout = {
+          title: "Diagramme de Gantt basé sur la Feature Layer AGO",
+          barmode: 'stack',
+          margin: { l: 150, r: 20, t: 40, b: 40 },
+          xaxis: { title: "Dates", type: "date" },
+          yaxis: { automargin: true }
+        };
+
+        Plotly.newPlot("chart", data, layout);
+      });
+    });
+  </script>
+
+</body>
+</html>
