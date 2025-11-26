@@ -1,92 +1,101 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <title>Gantt Plotly + Feature Layer AGO</title>
-
-  <!-- ArcGIS API for JavaScript -->
-  <script src="https://js.arcgis.com/4.29/"></script>
+  <meta charset="UTF-8" />
+  <title>Debug Gantt</title>
 
   <!-- Plotly -->
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 
+  <!-- ArcGIS JS API -->
+  <script src="https://js.arcgis.com/4.29/"></script>
+
   <style>
-    html, body { margin: 0; padding: 0; height: 100%; width: 100%; }
-    #chart { width: 100%; height: 100vh; }
+    body { font-family: Arial; margin: 20px; }
+    #chart { width: 100%; height: 600px; }
+    .log { background: #f5f5f5; padding: 10px; border-radius: 4px; margin-top: 20px; }
   </style>
 </head>
-
 <body>
-  <div id="chart"></div>
 
-  <script>
-    require(["esri/layers/FeatureLayer", "esri/rest/support/Query"], function (
-      FeatureLayer, Query
-    ) {
+<h2>Debug – Gantt depuis FeatureLayer</h2>
 
-      // --- URL DE TA FEATURELAYER AGO ---
-      const featureLayerUrl =
-        "https://services.arcgis.com/d3voDfTFbHOCRwVR/arcgis/rest/services/survey123_52a2c2c243354b4bbe1285638d3e41ba/FeatureServer/0";
+<div id="chart"></div>
 
-      const layer = new FeatureLayer({ url: featureLayerUrl });
+<div class="log">
+  <strong>Console :</strong> Ouvre F12 → onglet "Console" pour voir les logs détaillés.
+</div>
 
-      const query = layer.createQuery();
-      query.where = "1=1";
-      query.outFields = ["*"];
-      query.returnGeometry = false;
+<script>
+require([
+  "esri/layers/FeatureLayer"
+], function(FeatureLayer) {
 
-      layer.queryFeatures(query).then(function(result) {
+  console.log("➡️ Début du debug Gantt");
 
-        const features = result.features;
+  const layer = new FeatureLayer({
+    url: "https://services.arcgis.com/d3voDfTFbHOCRwVR/arcgis/rest/services/survey123_52a2c2c243354b4bbe1285638d3e41ba/FeatureServer/0",
+    outFields: ["*"]
+  });
 
-        // --- Champs de ta couche ---
-        const startField = "d_but_de_lactivit";
-        const endField   = "fin_de_lactivit";
-        const categoryField = "unit";
+  layer.queryFeatures({
+    where: "1=1",
+    outFields: ["*"],
+    returnGeometry: false
+  }).then(response => {
+    console.log("📌 Nombre d'entités retournées :", response.features.length);
 
-        const tasks = [];
-        const starts = [];
-        const ends = [];
-        const categories = [];
+    const tasks = response.features.map(f => {
+      const attrs = f.attributes;
 
-        features.forEach(f => {
-          const attrs = f.attributes;
+      console.log("--- Entité ---");
+      console.log("start :", attrs.d_but_de_lactivit);
+      console.log("end   :", attrs.fin_de_lactivit);
+      console.log("unit  :", attrs.unit);
 
-          const start = attrs[startField];
-          const end   = attrs[endField];
+      if (!attrs.d_but_de_lactivit || !attrs.fin_de_lactivit) {
+        console.warn("⚠️ Entité ignorée car dates manquantes");
+        return null;
+      }
 
-          if (!start || !end) return;   // ignore les lignes incomplètes
+      return {
+        Task: attrs.unit,
+        Start: new Date(attrs.d_but_de_lactivit),
+        Finish: new Date(attrs.fin_de_lactivit)
+      };
+    }).filter(t => t !== null);
 
-          tasks.push(attrs[categoryField]);    // nom de tâche = "unit"
-          starts.push(new Date(start));
-          ends.push(new Date(end));
-          categories.push(attrs[categoryField]);
-        });
+    console.log("📌 Tâches valides :", tasks.length);
 
-        const data = [{
-          type: 'bar',
-          x: ends.map((e, i) => (e - starts[i]) / (1000 * 3600 * 24)), // durée en jours
-          y: tasks,
-          base: starts,
-          orientation: 'h',
-          text: categories,
-          hovertemplate:
-            "<b>%{y}</b><br>" +
-            "Début : %{base|%d/%m/%Y}<br>" +
-            "Fin : %{text}<extra></extra>",
-        }];
+    if (tasks.length === 0) {
+      console.error("❌ Aucune tâche valide → Gantt vide.");
+      return;
+    }
 
-        const layout = {
-          title: "Diagramme de Gantt — Feature Layer AGO",
-          margin: { l: 150, r: 20, t: 40, b: 40 },
-          xaxis: { title: "Dates", type: "date" },
-          yaxis: { automargin: true }
-        };
+    const fig = {
+      data: [{
+        type: 'bar',
+        x: tasks.map(t => t.Finish - t.Start),
+        y: tasks.map(t => t.Task),
+        orientation: 'h',
+        base: tasks.map(t => t.Start),
+      }],
+      layout: {
+        title: "Gantt Debug",
+        xaxis: { type: "date" },
+        height: 600
+      }
+    };
 
-        Plotly.newPlot("chart", data, layout);
-      });
-    });
-  </script>
+    Plotly.newPlot('chart', fig);
+  })
+  .catch(err => {
+    console.error("❌ Erreur queryFeatures :", err);
+  });
+
+});
+</script>
 
 </body>
 </html>
+`
