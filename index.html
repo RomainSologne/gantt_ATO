@@ -67,21 +67,7 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
     if (tasks.length === 0) return;
 
     const fig = {
-      data: [
-        {
-      type: 'bar',
-      x: tasks.map(t => t.Finish - t.Start),
-      y: tasks.map(t => t.Task),
-      base: tasks.map(t => t.Start),
-      orientation: 'h',
-      width: 0.55, // plus large que la barre principale
-      marker: {
-        color: 'rgba(0,0,0,0.15)' // gris transparent
-      },
-      offsetgroup: "shadow",   // groupe spécifique
-      hoverinfo: "skip"        // pas de hover sur l'ombre
-    },
-        {
+      data: [{
         type: 'bar',
         x: tasks.map(t => t.Finish - t.Start),
         y: tasks.map(t => t.Task),
