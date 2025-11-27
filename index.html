@@ -27,56 +27,11 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
     outFields: ["*"]
   });
 
-  layer.queryFeatures({
-    where: "1=1",
-    outFields: ["*"],
-    returnGeometry: false
-  }).then(response => {
+  // -----------------------------------------------------
+  // 🔥 Fonction qui construit et affiche le graphique
+  // -----------------------------------------------------
+  function updateChart(tasks) {
 
-    const colorMap = {};
-    const palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
-    let colorIndex = 0;
-
-    const tasks = response.features.map(f => {
-      const attrs = f.attributes;
-
-      const start = attrs.d_but_de_lactivit;
-      const end = attrs.fin_de_lactivit;
-      const unit = attrs.unit;
-      const field9 = attrs.field_9;
-      const missionNum = attrs.num_ro_de_mission;
-      const validation = attrs.validation;
-
-      if (!start || !end) return null;
-
-      if (!colorMap[field9]) {
-        colorMap[field9] = palette[colorIndex % palette.length];
-        colorIndex++;
-      }
-
-      let icon = "";
-      if (validation === "Validée" || validation === "valide" || validation === "OK") {
-        icon = " ✔️";
-      } else if (validation === "Annulée" || validation === "non valide" || validation === "KO") {
-        icon = " ❌";
-      } else {
-        icon = " ⌛";
-      }
-
-      return {
-        Task: unit,
-        Start: new Date(start),
-        Finish: new Date(end),
-        Color: colorMap[field9],
-        Label: missionNum + icon,
-        Zone: field9,
-        Validation: validation
-      };
-    }).filter(t => t !== null);
-
-    if (tasks.length === 0) return;
-
-    // 🔥 LIGNE VERTICALE "FIL ROUGE"
     const now = new Date();
 
     const fig = {
@@ -112,7 +67,7 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
         height: 400,
         margin: { l: 50, r: 20, t: 40, b: 40 },
 
-        // 🔥 FIL ROUGE
+        // 🔥 FIL ROUGE recalculé à chaque update
         shapes: [{
           type: "line",
           x0: now,
@@ -130,7 +85,74 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
       }
     };
 
-    Plotly.newPlot('chart', fig);
+    Plotly.react("chart", fig);  // <<< react() = met à jour sans recréer
+  }
+
+  // -----------------------------------------------------
+  // 🔥 Charger les données ArcGIS UNE SEULE FOIS
+  // -----------------------------------------------------
+  layer.queryFeatures({
+    where: "1=1",
+    outFields: ["*"],
+    returnGeometry: false
+  }).then(response => {
+
+    // ----- Construire la liste des tâches une fois -----
+    const colorMap = {};
+    const palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
+    let colorIndex = 0;
+
+    const tasks = response.features.map(f => {
+      const attrs = f.attributes;
+
+      const start = attrs.d_but_de_lactivit;
+      const end = attrs.fin_de_lactivit;
+      const unit = attrs.unit;
+      const field9 = attrs.field_9;
+      const missionNum = attrs.num_ro_de_mission;
+      const validation = attrs.validation;
+
+      if (!start || !end) return null;
+
+      if (!colorMap[field9]) {
+        colorMap[field9] = palette[colorIndex % palette.length];
+        colorIndex++;
+      }
+
+      let icon = "";
+      if (validation === "Validée" || validation === "valide" || validation === "OK") {
+        icon = " ✔️";
+      } else if (validation === "Annulée" || validation === "non vale" || validation === "KO") {
+        icon = " ❌";
+      } else {
+        icon = " ⌛";
+      }
+
+      return {
+        Task: unit,
+        Start: new Date(start),
+        Finish: new Date(end),
+        Color: colorMap[field9],
+        Label: missionNum + icon,
+        Zone: field9,
+        Validation: validation
+      };
+    }).filter(t => t !== null);
+
+    if (tasks.length === 0) return;
+
+    // -----------------------------------------------------
+    // 🔥 1) Affichage initial du graphe
+    // -----------------------------------------------------
+    updateChart(tasks);
+
+    // -----------------------------------------------------
+    // 🔥 2) Mise à jour automatique toutes les minutes
+    // -----------------------------------------------------
+    setInterval(() => {
+      updateChart(tasks);
+    }, 60 * 1000); // toutes les 60 secondes
+
   })
   .catch(err => {
     alert("Erreur lors du chargement des données : " + err);
