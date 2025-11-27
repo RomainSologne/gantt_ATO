@@ -33,13 +33,13 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
     returnGeometry: false
   }).then(response => {
 
-    // Couleurs par field_9
     const colorMap = {};
     const palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
     let colorIndex = 0;
 
     const tasks = response.features.map(f => {
       const attrs = f.attributes;
+
       const start = attrs.d_but_de_lactivit;
       const end = attrs.fin_de_lactivit;
       const unit = attrs.unit;
@@ -58,7 +58,8 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
         Start: new Date(start),
         Finish: new Date(end),
         Color: colorMap[field9],
-        Label: missionNum
+        Label: missionNum,
+        Zone: field9
       };
     }).filter(t => t !== null);
 
@@ -72,14 +73,23 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
         base: tasks.map(t => t.Start),
         orientation: 'h',
         text: tasks.map(t => t.Label),
-        bargap: 0.2,
-        width: 0.4,
+
+        // 🔥 CUSTOMDATA pour enrichir le hover
+        customdata: tasks.map(t => ({
+          start: t.Start,
+          finish: t.Finish,
+          zone: t.Zone
+        })),
+
         marker: { color: tasks.map(t => t.Color) },
+
+        // 🔥 HOVER customisé
         hovertemplate:
-          "<b>%{y}</b><br>" +
-          "Début : %{base|%d/%m/%Y}<br>" +
-          "Fin : %{x}<br>" +
-          "Mission : %{text}<extra></extra>"
+          "<b>Mission %{text}</b><br>" +
+          "Début : %{customdata.start|%d/%m/%Y %H:%M}<br>" +
+          "Fin : %{customdata.finish|%d/%m/%Y %H:%M}<br>" +
+          "Zone : %{customdata.zone}<br>" +
+          "<extra></extra>"
       }],
       layout: {
         title: "Planification des vols",
