@@ -45,7 +45,7 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
       const unit = attrs.unit;
       const field9 = attrs.field_9;
       const missionNum = attrs.num_ro_de_mission;
-      const validation = attrs.validation;   // <---- 🔥 statut validation
+      const validation = attrs.validation;
 
       if (!start || !end) return null;
 
@@ -54,14 +54,13 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
         colorIndex++;
       }
 
-      // 🔥 Icône selon validation
       let icon = "";
       if (validation === "Validée" || validation === "valide" || validation === "OK") {
         icon = " ✔️";
       } else if (validation === "Annulée" || validation === "non valide" || validation === "KO") {
         icon = " ❌";
       } else {
-        icon = " ⌛"; // si statut inconnu
+        icon = " ⌛";
       }
 
       return {
@@ -69,13 +68,16 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
         Start: new Date(start),
         Finish: new Date(end),
         Color: colorMap[field9],
-        Label: missionNum + icon,  // <-- 🔥 icône affichée dans la barre
+        Label: missionNum + icon,
         Zone: field9,
         Validation: validation
       };
     }).filter(t => t !== null);
 
     if (tasks.length === 0) return;
+
+    // 🔥 LIGNE VERTICALE "FIL ROUGE"
+    const now = new Date();
 
     const fig = {
       data: [{
@@ -92,6 +94,7 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
           zone: t.Zone,
           validation: t.Validation
         })),
+
         width: 0.4,
         marker: { color: tasks.map(t => t.Color) },
 
@@ -107,7 +110,23 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
         title: "Planification des vols",
         xaxis: { type: "date" },
         height: 400,
-        margin: { l: 50, r: 20, t: 40, b: 40 }
+        margin: { l: 50, r: 20, t: 40, b: 40 },
+
+        // 🔥 FIL ROUGE
+        shapes: [{
+          type: "line",
+          x0: now,
+          x1: now,
+          y0: 0,
+          y1: 1,
+          xref: "x",
+          yref: "paper",
+          line: {
+            color: "red",
+            width: 2,
+            dash: "dot"
+          }
+        }]
       }
     };
 
