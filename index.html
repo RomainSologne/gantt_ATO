@@ -103,12 +103,31 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
           "<extra></extra>"
       }],
 
-      layout: {
-        title: "Planification des vols",
-        xaxis: { type: "date" },
-        height: 400,
-        margin: { l: 50, r: 20, t: 40, b: 40 }
+      const now = new Date();   // date et heure actuelles
+
+layout: {
+  title: "Planification des vols",
+  xaxis: { type: "date" },
+  height: 400,
+  margin: { l: 50, r: 20, t: 40, b: 40 },
+
+  shapes: [
+    {
+      type: "line",
+      x0: now,
+      x1: now,
+      y0: 0,
+      y1: 1,
+      xref: "x",
+      yref: "paper",
+      line: {
+        color: "red",
+        width: 2,
+        dash: "dot"
       }
+    }
+  ]
+}
     };
 
     Plotly.newPlot('chart', fig);
