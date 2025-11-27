@@ -45,6 +45,7 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
       const unit = attrs.unit;
       const field9 = attrs.field_9;
       const missionNum = attrs.num_ro_de_mission;
+      const validation = attrs.validation;   // <---- 🔥 statut validation
 
       if (!start || !end) return null;
 
@@ -53,13 +54,24 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
         colorIndex++;
       }
 
+      // 🔥 Icône selon validation
+      let icon = "";
+      if (validation === "Validée" || validation === "valide" || validation === "OK") {
+        icon = " ✔️";
+      } else if (validation === "Annulée" || validation === "non valide" || validation === "KO") {
+        icon = " ❌";
+      } else {
+        icon = " ⌛"; // si statut inconnu
+      }
+
       return {
         Task: unit,
         Start: new Date(start),
         Finish: new Date(end),
         Color: colorMap[field9],
-        Label: missionNum,
-        Zone: field9
+        Label: missionNum + icon,  // <-- 🔥 icône affichée dans la barre
+        Zone: field9,
+        Validation: validation
       };
     }).filter(t => t !== null);
 
@@ -74,23 +86,24 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
         orientation: 'h',
         text: tasks.map(t => t.Label),
 
-        // 🔥 CUSTOMDATA pour enrichir le hover
         customdata: tasks.map(t => ({
           start: t.Start,
           finish: t.Finish,
-          zone: t.Zone
+          zone: t.Zone,
+          validation: t.Validation
         })),
 
         marker: { color: tasks.map(t => t.Color) },
 
-        // 🔥 HOVER customisé
         hovertemplate:
           "<b>Mission %{text}</b><br>" +
+          "Statut : %{customdata.validation}<br>" +
+          "Zone : %{customdata.zone}<br>" +
           "Début : %{customdata.start|%d/%m/%Y %H:%M}<br>" +
           "Fin : %{customdata.finish|%d/%m/%Y %H:%M}<br>" +
-          "Zone : %{customdata.zone}<br>" +
           "<extra></extra>"
       }],
+
       layout: {
         title: "Planification des vols",
         xaxis: { type: "date" },
