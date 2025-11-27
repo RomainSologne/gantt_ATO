@@ -17,6 +17,34 @@
 </head>
 <body>
 
+<div style="margin-bottom: 15px; display: flex; gap: 20px; align-items: center;">
+
+  <!-- Filtre par date -->
+  <div>
+    <label>Début :</label>
+    <input type="datetime-local" id="filterStart">
+    <label>Fin :</label>
+    <input type="datetime-local" id="filterEnd">
+  </div>
+
+  <!-- Filtre par Unité -->
+  <div>
+    <label>Unité :</label>
+    <select id="filterUnit">
+      <option value="">Toutes</option>
+    </select>
+  </div>
+
+  <!-- Filtre par Zone -->
+  <div>
+    <label>Zone :</label>
+    <select id="filterZone">
+      <option value="">Toutes</option>
+    </select>
+  </div>
+
+</div>  
+  
 <div id="chart"></div>
 
 <script>
@@ -27,11 +55,99 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
     outFields: ["*"]
   });
 
-  // -----------------------------------------------------
-  // 🔥 Fonction qui construit et affiche le graphique
-  // -----------------------------------------------------
-  function updateChart(tasks) {
+  let rawTasks = []; // toutes les données AGO
+  let filteredTasks = []; // données filtrées
 
+  //------------------------------------------------------
+  // 🔥 Charger les données AGO
+  //------------------------------------------------------
+  async function loadData() {
+    const response = await layer.queryFeatures({
+      where: "1=1",
+      outFields: ["*"],
+      returnGeometry: false
+    });
+
+    const colorMap = {};
+    const palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd",
+                     "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
+    let colorIndex = 0;
+
+    rawTasks = response.features.map(f => {
+      const a = f.attributes;
+
+      if (!a.d_but_de_lactivit || !a.fin_de_lactivit) return null;
+
+      // Assigner couleur par zone
+      if (!colorMap[a.field_9]) {
+        colorMap[a.field_9] = palette[colorIndex % palette.length];
+        colorIndex++;
+      }
+
+      // Icône validation
+      let icon = " ⌛";
+      if (["Validée", "valide", "OK"].includes(a.validation)) icon = " ✔️";
+      if (["Annulée", "KO"].includes(a.validation)) icon = " ❌";
+
+      return {
+        Task: a.unit,
+        Start: new Date(a.d_but_de_lactivit),
+        Finish: new Date(a.fin_de_lactivit),
+        Color: colorMap[a.field_9],
+        Label: a.num_ro_de_mission + icon,
+        Zone: a.field_9,
+        Validation: a.validation
+      };
+    }).filter(t => t !== null);
+
+    buildFilterOptions();  // (unités + zones)
+    applyFilters();        // lancement automatique
+  }
+
+  //------------------------------------------------------
+  // 🔥 Construire les options des filtres (unit & zone)
+  //------------------------------------------------------
+  function buildFilterOptions() {
+    const unitSel = document.getElementById("filterUnit");
+    const zoneSel = document.getElementById("filterZone");
+
+    const units = [...new Set(rawTasks.map(t => t.Task))].sort();
+    const zones = [...new Set(rawTasks.map(t => t.Zone))].sort();
+
+    unitSel.innerHTML = `<option value="">Toutes</option>` +
+                        units.map(u => `<option value="${u}">${u}</option>`).join("");
+
+    zoneSel.innerHTML = `<option value="">Toutes</option>` +
+                        zones.map(z => `<option value="${z}">${z}</option>`).join("");
+  }
+
+  //------------------------------------------------------
+  // 🔥 Appliquer les filtres
+  //------------------------------------------------------
+  function applyFilters() {
+    const fs = document.getElementById("filterStart").value;
+    const fe = document.getElementById("filterEnd").value;
+    const fu = document.getElementById("filterUnit").value;
+    const fz = document.getElementById("filterZone").value;
+
+    filteredTasks = rawTasks.filter(t => {
+      let ok = true;
+
+      if (fs) ok = ok && t.Finish >= new Date(fs);
+      if (fe) ok = ok && t.Start <= new Date(fe);
+      if (fu) ok = ok && t.Task === fu;
+      if (fz) ok = ok && t.Zone === fz;
+
+      return ok;
+    });
+
+    updateChart(filteredTasks);
+  }
+
+  //------------------------------------------------------
+  // 🔥 Dessiner le graphique
+  //------------------------------------------------------
+  function updateChart(tasks) {
     const now = new Date();
 
     const fig = {
@@ -41,6 +157,7 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
         y: tasks.map(t => t.Task),
         base: tasks.map(t => t.Start),
         orientation: 'h',
+
         text: tasks.map(t => t.Label),
 
         customdata: tasks.map(t => ({
@@ -50,8 +167,8 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
           validation: t.Validation
         })),
 
-        width: 0.4,
         marker: { color: tasks.map(t => t.Color) },
+        width: 0.4,
 
         hovertemplate:
           "<b>Mission %{text}</b><br>" +
@@ -64,99 +181,42 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
       layout: {
         title: "Planification des vols",
         xaxis: { type: "date" },
-        height: 400,
+        height: 450,
         margin: { l: 50, r: 20, t: 40, b: 40 },
 
-        // 🔥 FIL ROUGE recalculé à chaque update
         shapes: [{
           type: "line",
-          x0: now,
-          x1: now,
-          y0: 0,
-          y1: 1,
-          xref: "x",
-          yref: "paper",
-          line: {
-            color: "red",
-            width: 2,
-            dash: "dot"
-          }
+          x0: now, x1: now,
+          y0: 0, y1: 1,
+          xref: "x", yref: "paper",
+          line: { color: "red", width: 2, dash: "dot" }
         }]
       }
     };
 
-    Plotly.react("chart", fig);  // <<< react() = met à jour sans recréer
+    Plotly.react("chart", fig);
   }
 
-  // -----------------------------------------------------
-  // 🔥 Charger les données ArcGIS UNE SEULE FOIS
-  // -----------------------------------------------------
-  layer.queryFeatures({
-    where: "1=1",
-    outFields: ["*"],
-    returnGeometry: false
-  }).then(response => {
+  //------------------------------------------------------
+  // 🔥 Ajout des listeners sur les filtres
+  //------------------------------------------------------
+  document.getElementById("filterStart").onchange = applyFilters;
+  document.getElementById("filterEnd").onchange = applyFilters;
+  document.getElementById("filterUnit").onchange = applyFilters;
+  document.getElementById("filterZone").onchange = applyFilters;
 
-    // ----- Construire la liste des tâches une fois -----
-    const colorMap = {};
-    const palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
-    let colorIndex = 0;
+  //------------------------------------------------------
+  // 🔥 Premier chargement
+  //------------------------------------------------------
+  loadData();
 
-    const tasks = response.features.map(f => {
-      const attrs = f.attributes;
-
-      const start = attrs.d_but_de_lactivit;
-      const end = attrs.fin_de_lactivit;
-      const unit = attrs.unit;
-      const field9 = attrs.field_9;
-      const missionNum = attrs.num_ro_de_mission;
-      const validation = attrs.validation;
-
-      if (!start || !end) return null;
-
-      if (!colorMap[field9]) {
-        colorMap[field9] = palette[colorIndex % palette.length];
-        colorIndex++;
-      }
-
-      let icon = "";
-      if (validation === "Validée" || validation === "valide" || validation === "OK") {
-        icon = " ✔️";
-      } else if (validation === "Annulée" || validation === "non vale" || validation === "KO") {
-        icon = " ❌";
-      } else {
-        icon = " ⌛";
-      }
-
-      return {
-        Task: unit,
-        Start: new Date(start),
-        Finish: new Date(end),
-        Color: colorMap[field9],
-        Label: missionNum + icon,
-        Zone: field9,
-        Validation: validation
-      };
-    }).filter(t => t !== null);
-
-    if (tasks.length === 0) return;
-
-    // -----------------------------------------------------
-    // 🔥 1) Affichage initial du graphe
-    // -----------------------------------------------------
-    updateChart(tasks);
-
-    // -----------------------------------------------------
-    // 🔥 2) Mise à jour automatique toutes les minutes
-    // -----------------------------------------------------
-    setInterval(() => {
-      updateChart(tasks);
-    }, 60 * 1000); // toutes les 60 secondes
-
-  })
-  .catch(err => {
-    alert("Erreur lors du chargement des données : " + err);
-  });
+  //------------------------------------------------------
+  // 🔥 Mise à jour toutes les minutes
+  //------------------------------------------------------
+  setInterval(() => {
+    console.log("⟳ Mise à jour AGO + filtre…");
+    loadData();
+  }, 60000);
 
 });
 </script>
