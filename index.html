@@ -27,11 +27,61 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
     outFields: ["*"]
   });
 
-  // -----------------------------------------------------
-  // 🔥 Fonction qui construit et affiche le graphique
-  // -----------------------------------------------------
-  function updateChart(tasks) {
+  //------------------------------------------------------
+  // 🔥 Fonction : charger les données AGO
+  //------------------------------------------------------
+  async function loadData() {
+    const response = await layer.queryFeatures({
+      where: "1=1",
+      outFields: ["*"],
+      returnGeometry: false
+    });
 
+    const colorMap = {};
+    const palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd",
+                     "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
+    let colorIndex = 0;
+
+    const tasks = response.features.map(f => {
+      const attrs = f.attributes;
+
+      const start = attrs.d_but_de_lactivit;
+      const end = attrs.fin_de_lactivit;
+      const unit = attrs.unit;
+      const zone = attrs.field_9;
+      const mission = attrs.num_ro_de_mission;
+      const validation = attrs.validation;
+
+      if (!start || !end) return null;
+
+      if (!colorMap[zone]) {
+        colorMap[zone] = palette[colorIndex % palette.length];
+        colorIndex++;
+      }
+
+      // Icône de statut
+      let icon = " ⌛"; // défaut
+      if (["Validée", "valide", "OK"].includes(validation)) icon = " ✔️";
+      if (["Annulée", "KO", "non valide"].includes(validation)) icon = " ❌";
+
+      return {
+        Task: unit,
+        Start: new Date(start),
+        Finish: new Date(end),
+        Color: colorMap[zone],
+        Label: mission + icon,
+        Zone: zone,
+        Validation: validation
+      };
+    }).filter(t => t !== null);
+
+    return tasks;
+  }
+
+  //------------------------------------------------------
+  // 🔥 Fonction : mettre à jour le graphique Plotly
+  //------------------------------------------------------
+  function updateChart(tasks) {
     const now = new Date();
 
     const fig = {
@@ -41,6 +91,7 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
         y: tasks.map(t => t.Task),
         base: tasks.map(t => t.Start),
         orientation: 'h',
+
         text: tasks.map(t => t.Label),
 
         customdata: tasks.map(t => ({
@@ -67,96 +118,36 @@ require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
         height: 400,
         margin: { l: 50, r: 20, t: 40, b: 40 },
 
-        // 🔥 FIL ROUGE recalculé à chaque update
+        // 🔥 Fil rouge dynamique
         shapes: [{
           type: "line",
-          x0: now,
-          x1: now,
-          y0: 0,
-          y1: 1,
+          x0: now, x1: now,
+          y0: 0,   y1: 1,
           xref: "x",
           yref: "paper",
-          line: {
-            color: "red",
-            width: 2,
-            dash: "dot"
-          }
+          line: { color: "red", width: 2, dash: "dot" }
         }]
       }
     };
 
-    Plotly.react("chart", fig);  // <<< react() = met à jour sans recréer
+    Plotly.react("chart", fig); // Mise à jour efficace
   }
 
-  // -----------------------------------------------------
-  // 🔥 Charger les données ArcGIS UNE SEULE FOIS
-  // -----------------------------------------------------
-  layer.queryFeatures({
-    where: "1=1",
-    outFields: ["*"],
-    returnGeometry: false
-  }).then(response => {
-
-    // ----- Construire la liste des tâches une fois -----
-    const colorMap = {};
-    const palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
-    let colorIndex = 0;
-
-    const tasks = response.features.map(f => {
-      const attrs = f.attributes;
-
-      const start = attrs.d_but_de_lactivit;
-      const end = attrs.fin_de_lactivit;
-      const unit = attrs.unit;
-      const field9 = attrs.field_9;
-      const missionNum = attrs.num_ro_de_mission;
-      const validation = attrs.validation;
-
-      if (!start || !end) return null;
-
-      if (!colorMap[field9]) {
-        colorMap[field9] = palette[colorIndex % palette.length];
-        colorIndex++;
-      }
-
-      let icon = "";
-      if (validation === "Validée" || validation === "valide" || validation === "OK") {
-        icon = " ✔️";
-      } else if (validation === "Annulée" || validation === "non vale" || validation === "KO") {
-        icon = " ❌";
-      } else {
-        icon = " ⌛";
-      }
-
-      return {
-        Task: unit,
-        Start: new Date(start),
-        Finish: new Date(end),
-        Color: colorMap[field9],
-        Label: missionNum + icon,
-        Zone: field9,
-        Validation: validation
-      };
-    }).filter(t => t !== null);
-
-    if (tasks.length === 0) return;
-
-    // -----------------------------------------------------
-    // 🔥 1) Affichage initial du graphe
-    // -----------------------------------------------------
+  //------------------------------------------------------
+  // 🔥 Premier chargement
+  //------------------------------------------------------
+  loadData().then(tasks => {
     updateChart(tasks);
-
-    // -----------------------------------------------------
-    // 🔥 2) Mise à jour automatique toutes les minutes
-    // -----------------------------------------------------
-    setInterval(() => {
-      updateChart(tasks);
-    }, 60 * 1000); // toutes les 60 secondes
-
-  })
-  .catch(err => {
-    alert("Erreur lors du chargement des données : " + err);
   });
+
+  //------------------------------------------------------
+  // 🔥 Mise à jour AUTOMATIQUE : AGO + fil rouge
+  //------------------------------------------------------
+  setInterval(async () => {
+    console.log("⟳ Mise à jour automatique...");
+    const tasks = await loadData();  // reload AGO
+    updateChart(tasks);              // refresh graph
+  }, 60 * 1000); // toutes les 60 secondes
 
 });
 </script>
